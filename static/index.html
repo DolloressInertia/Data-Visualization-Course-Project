@@ -1,0 +1,259 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Automated Dataset Explorer</title>
+    <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f7fb;
+            margin: 0;
+            padding: 0;
+            color: #222;
+        }
+
+        header {
+            background: linear-gradient(135deg, #2d6cdf, #6a5acd);
+            color: white;
+            padding: 35px;
+            text-align: center;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 30px auto;
+            background: white;
+            padding: 25px;
+            border-radius: 16px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+        }
+
+        .upload-box {
+            border: 2px dashed #2d6cdf;
+            padding: 30px;
+            text-align: center;
+            border-radius: 14px;
+            background: #f8fbff;
+        }
+
+        button {
+            background: #2d6cdf;
+            color: white;
+            border: none;
+            padding: 12px 22px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 15px;
+            font-size: 16px;
+        }
+
+        button:hover {
+            background: #1f55b5;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 13px;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 7px;
+        }
+
+        th {
+            background: #eef3ff;
+        }
+
+        .chart {
+            margin-top: 35px;
+            padding: 20px;
+            border-radius: 12px;
+            background: #fafafa;
+        }
+
+        .card {
+            background: #f8fbff;
+            border-left: 5px solid #2d6cdf;
+            padding: 15px;
+            margin: 12px 0;
+            border-radius: 8px;
+        }
+
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+
+        .loading {
+            font-weight: bold;
+            color: #2d6cdf;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+<header>
+    <h1>Interactive Data Visualization Web Application</h1>
+    <p>Automated Dataset Explorer with AI-Powered Insights</p>
+</header>
+
+<div class="container">
+    <h2>1. Upload Dataset</h2>
+
+    <div class="upload-box">
+        <input type="file" id="fileInput" accept=".csv,.xlsx">
+        <br>
+        <button onclick="uploadFile()">Upload Dataset</button>
+    </div>
+
+    <div id="message"></div>
+    <div id="preview"></div>
+
+    <button id="analyzeBtn" onclick="analyzeDataset()" style="display:none;">
+        Analyze Dataset
+    </button>
+</div>
+
+<div class="container" id="results" style="display:none;">
+    <h2>2. Analysis Results</h2>
+
+    <h3>Dataset Summary</h3>
+    <div id="summary"></div>
+
+    <h3>AI-Generated Insights</h3>
+    <div id="insights"></div>
+
+    <h3>Visualizations</h3>
+    <div id="charts"></div>
+
+    <h3>Final Conclusion</h3>
+    <div id="conclusion"></div>
+</div>
+
+<script>
+let uploadedFileId = null;
+
+async function uploadFile() {
+    const fileInput = document.getElementById("fileInput");
+    const message = document.getElementById("message");
+    const preview = document.getElementById("preview");
+
+    if (!fileInput.files.length) {
+        message.innerHTML = "<p class='error'>Please select a CSV or XLSX file.</p>";
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", fileInput.files[0]);
+
+    message.innerHTML = "<p class='loading'>Uploading file...</p>";
+
+    const response = await fetch("/upload", {
+        method: "POST",
+        body: formData
+    });
+
+    const data = await response.json();
+
+    if (data.error) {
+        message.innerHTML = "<p class='error'>" + data.error + "</p>";
+        return;
+    }
+
+    uploadedFileId = data.file_id;
+
+    message.innerHTML = `
+        <p><b>Uploaded successfully!</b></p>
+        <p>Rows: ${data.rows} | Columns: ${data.columns_count}</p>
+    `;
+
+    let html = "<h3>Preview First 20 Rows</h3>";
+    html += "<table><tr>";
+
+    data.columns.forEach(col => {
+        html += `<th>${col}</th>`;
+    });
+
+    html += "</tr>";
+
+    data.preview.forEach(row => {
+        html += "<tr>";
+        data.columns.forEach(col => {
+            html += `<td>${row[col] ?? ""}</td>`;
+        });
+        html += "</tr>";
+    });
+
+    html += "</table>";
+
+    preview.innerHTML = html;
+    document.getElementById("analyzeBtn").style.display = "inline-block";
+}
+
+async function analyzeDataset() {
+    const message = document.getElementById("message");
+    message.innerHTML = "<p class='loading'>Analyzing dataset... Please wait.</p>";
+
+    const response = await fetch("/analyze", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({file_id: uploadedFileId})
+    });
+
+    const data = await response.json();
+
+    if (data.error) {
+        message.innerHTML = "<p class='error'>" + data.error + "</p>";
+        return;
+    }
+
+    document.getElementById("results").style.display = "block";
+    message.innerHTML = "<p><b>Analysis completed!</b></p>";
+
+    document.getElementById("summary").innerHTML = `
+        <div class="card">
+            <p><b>Original Shape:</b> ${data.summary.original_shape}</p>
+            <p><b>Cleaned Shape:</b> ${data.summary.cleaned_shape}</p>
+            <p><b>Numeric Columns:</b> ${data.summary.numeric_columns.join(", ")}</p>
+            <p><b>Categorical Columns:</b> ${data.summary.categorical_columns.join(", ")}</p>
+            <p><b>Datetime Columns:</b> ${data.summary.datetime_columns.join(", ")}</p>
+        </div>
+    `;
+
+    let insightsHtml = "";
+    data.insights.forEach(item => {
+        insightsHtml += `<div class="card">${item}</div>`;
+    });
+    document.getElementById("insights").innerHTML = insightsHtml;
+
+    const chartsDiv = document.getElementById("charts");
+    chartsDiv.innerHTML = "";
+
+    data.charts.forEach((chart, index) => {
+        const chartId = "chart_" + index;
+        chartsDiv.innerHTML += `
+            <div class="chart">
+                <h3>${chart.title}</h3>
+                <div id="${chartId}"></div>
+            </div>
+        `;
+
+        setTimeout(() => {
+            const fig = JSON.parse(chart.json);
+            Plotly.newPlot(chartId, fig.data, fig.layout);
+        }, 100);
+    });
+
+    document.getElementById("conclusion").innerHTML =
+        `<div class="card">${data.conclusion}</div>`;
+}
+</script>
+
+</body>
+</html>
